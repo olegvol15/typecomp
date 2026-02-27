@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/require-user";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
 import { Header } from "@/_components/layout/header";
@@ -6,6 +7,8 @@ import { RacePage } from "@/_components/game/race-page";
 export default async function HomePage() {
   const { supabase, user } = await requireUser();
   const profile = await ensureProfile(supabase, user);
+
+  if (!profile) redirect("/onboarding");
 
   return (
     <main className="min-h-screen p-6">
