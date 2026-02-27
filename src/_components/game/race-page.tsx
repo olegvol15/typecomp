@@ -8,14 +8,16 @@ import { formatAccuracy, formatWpm } from "@/utils/format";
 import { RoundTimer } from "./round-timer";
 import { TypingInput } from "./typing-input";
 import { LeaderboardTable } from "./leaderboard-table";
+import { RankingsTable, type RankingRow } from "./rankings-table";
 import type { PlayerState } from "@/types/race";
 
 type Props = {
   userId: string;
   username: string;
+  rankings: RankingRow[];
 };
 
-export function RacePage({ userId, username }: Props) {
+export function RacePage({ userId, username, rankings }: Props) {
   const { round, secondsLeft, isLoading, error } = useCurrentRound();
   const { players, broadcastUpdate, persistResult } = useRace(round, userId, username);
 
@@ -185,6 +187,21 @@ export function RacePage({ userId, username }: Props) {
             sentenceLength={sentence.length}
             currentUserId={userId}
           />
+        </Suspense>
+      </div>
+
+      <div>
+        <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">
+          All-time Rankings
+        </h3>
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/30 text-sm">
+              Loading rankings…
+            </div>
+          }
+        >
+          <RankingsTable rows={rankings} currentUserId={userId} />
         </Suspense>
       </div>
     </div>
