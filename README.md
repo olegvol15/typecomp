@@ -2,7 +2,7 @@
 
 A real-time typing competition platform. Players join a global room, type the same sentence within a 60-second round, and race each other live.
 
-**Live demo:** 
+**Live demo:** https://typecomp.vercel.app/?sort=wpm&dir=desc&page=0&size=10
 
 ---
 
@@ -27,7 +27,7 @@ src/
   _components/
     ui/          # Generic, reusable primitives (ProgressBar, Pagination)
     layout/      # Shell pieces (Header, LogoutButton)
-    game/        # Domain components (RacePage, LeaderboardTable, TypingInput, RoundTimer)
+    game/        # Domain components (RacePage, LeaderboardTable, RankingsTable, TypingInput, RoundTimer)
   app/           # Next.js routes only — no logic, no heavy components
   hooks/         # use-current-round, use-race
   lib/           # External adapters (Supabase clients, auth guard, profile helper)
@@ -70,6 +70,10 @@ Results are written to `round_results` via upsert on `(round_id, user_id)` in tw
 
 During a round, stats travel only over the realtime broadcast channel — no per-keystroke DB writes.
 
+### All-time rankings
+
+The home page fetches all finished `round_results` rows server-side and aggregates them in JS into per-player stats: best WPM, average WPM, average accuracy, and total race count. The resulting `RankingsTable` is rendered below the per-round leaderboard using local component state for sorting and pagination, keeping it decoupled from the leaderboard's URL params.
+
 ---
 
 ## What I would do next in production
@@ -100,7 +104,7 @@ During a round, stats travel only over the realtime broadcast channel — no per
 
 ### UX
 - Username settings page — let users pick their own handle.
-- Round history page — personal stats across all rounds.
+- Round history page — per-user breakdown across all rounds (currently aggregated globally in the rankings table).
 - Round end screen — brief results overlay before the next round auto-starts.
 - Mobile layout — the typing area needs responsive work.
 

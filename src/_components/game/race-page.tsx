@@ -158,7 +158,7 @@ export function RacePage({ userId, username, rankings }: Props) {
       <TypingInput sentence={sentence} typed={typed} disabled={!roundActive} onType={handleType} />
 
       {liveStats && (
-        <div className="flex gap-6 text-sm text-white/40">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-white/40">
           <span>
             <span className="text-white font-mono tabular-nums">{formatWpm(liveStats.wpm)}</span> WPM
           </span>

@@ -110,6 +110,7 @@ export function RankingsTable({ rows, currentUserId }: Props) {
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden">
+      <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           {table.getHeaderGroups().map((hg) => (
@@ -121,6 +122,8 @@ export function RankingsTable({ rows, currentUserId }: Props) {
                     "px-4 py-3 text-left text-white/40 font-medium text-xs uppercase tracking-wider",
                     header.column.getCanSort() &&
                       "cursor-pointer select-none hover:text-white/80 transition-colors",
+                    header.id === "avg_wpm" && "hidden sm:table-cell",
+                    header.id === "avg_accuracy" && "hidden sm:table-cell",
                   )}
                   onClick={header.column.getToggleSortingHandler()}
                 >
@@ -159,7 +162,14 @@ export function RankingsTable({ rows, currentUserId }: Props) {
                 )}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="px-4 py-3">
+                  <td
+                    key={cell.id}
+                    className={cn(
+                      "px-4 py-3",
+                      cell.column.id === "avg_wpm" && "hidden sm:table-cell",
+                      cell.column.id === "avg_accuracy" && "hidden sm:table-cell",
+                    )}
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
@@ -168,6 +178,7 @@ export function RankingsTable({ rows, currentUserId }: Props) {
           )}
         </tbody>
       </table>
+      </div>
 
       <Pagination
         pageIndex={pageIndex}

@@ -20,7 +20,7 @@ export function TypingInput({ sentence, typed, disabled, onType }: Props) {
   return (
     <div className="space-y-4">
       <div
-        className="rounded-xl border border-white/10 bg-white/5 p-6 font-mono text-xl leading-loose select-none cursor-text"
+        className="rounded-xl border border-white/10 bg-white/5 p-4 sm:p-6 font-mono text-base sm:text-xl leading-loose select-none cursor-text"
         onClick={() => inputRef.current?.focus()}
       >
         {sentence.split("").map((char, i) => {

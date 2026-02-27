@@ -42,7 +42,7 @@ export default async function HomePage() {
   }));
 
   return (
-    <main className="min-h-screen p-6">
+    <main className="min-h-screen p-4 sm:p-6">
       <div className="mx-auto max-w-4xl">
         <Header username={profile.username} />
         <RacePage userId={user.id} username={profile.username} rankings={rankings} />
