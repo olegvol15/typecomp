@@ -44,7 +44,8 @@ function OnlineDot({ online }: { online: boolean }) {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const PAGE_SIZE = 10;
+const PAGE_SIZES = [10, 25, 50] as const;
+const DEFAULT_PAGE_SIZE = 10;
 const helper = createColumnHelper<PlayerState>();
 
 // ---------------------------------------------------------------------------
@@ -62,10 +63,14 @@ export function Leaderboard({ players, sentenceLength, currentUserId }: Props) {
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
 
-  // URL-synced sort state
+  // URL-synced sort + pagination state
   const sortId = searchParams.get("sort") ?? "wpm";
   const sortDir = searchParams.get("dir") ?? "desc";
   const pageIndex = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  const pageSize = (() => {
+    const raw = parseInt(searchParams.get("size") ?? "", 10);
+    return (PAGE_SIZES as readonly number[]).includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+  })();
 
   const sorting: SortingState = useMemo(
     () => [{ id: sortId, desc: sortDir === "desc" }],
@@ -73,13 +78,14 @@ export function Leaderboard({ players, sentenceLength, currentUserId }: Props) {
   );
 
   const updateUrl = useCallback(
-    (newSort: SortingState, newPage: number) => {
+    (newSort: SortingState, newPage: number, newSize: number) => {
       const params = new URLSearchParams(searchParams.toString());
       if (newSort.length > 0) {
         params.set("sort", newSort[0].id);
         params.set("dir", newSort[0].desc ? "desc" : "asc");
       }
       params.set("page", String(newPage));
+      params.set("size", String(newSize));
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       });
@@ -143,19 +149,19 @@ export function Leaderboard({ players, sentenceLength, currentUserId }: Props) {
     columns,
     state: {
       sorting,
-      pagination: { pageIndex, pageSize: PAGE_SIZE },
+      pagination: { pageIndex, pageSize },
     },
     onSortingChange: (updater) => {
       const next =
         typeof updater === "function" ? updater(sorting) : updater;
-      updateUrl(next, 0);
+      updateUrl(next, 0, pageSize);
     },
     onPaginationChange: (updater) => {
       const next =
         typeof updater === "function"
-          ? updater({ pageIndex, pageSize: PAGE_SIZE })
+          ? updater({ pageIndex, pageSize })
           : updater;
-      updateUrl(sorting, next.pageIndex);
+      updateUrl(sorting, next.pageIndex, next.pageSize);
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -229,13 +235,36 @@ export function Leaderboard({ players, sentenceLength, currentUserId }: Props) {
         </tbody>
       </table>
 
-      {/* Pagination */}
-      {table.getPageCount() > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-white/10 text-xs text-white/40">
-          <span>
-            Page {pageIndex + 1} of {table.getPageCount()} &middot;{" "}
-            {players.length} players
+      {/* Pagination + rows-per-page */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-white/10 text-xs text-white/40">
+        {/* Rows-per-page selector */}
+        <div className="flex items-center gap-2">
+          <span>Rows</span>
+          <select
+            value={pageSize}
+            onChange={(e) =>
+              updateUrl(sorting, 0, parseInt(e.target.value, 10))
+            }
+            className="bg-white/5 border border-white/10 rounded px-1.5 py-1 text-white/70 hover:border-white/30 transition-colors outline-none cursor-pointer"
+          >
+            {PAGE_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <span className="text-white/25">
+            {players.length} total
           </span>
+        </div>
+
+        {/* Page controls */}
+        <div className="flex items-center gap-3">
+          {table.getPageCount() > 1 && (
+            <span>
+              Page {pageIndex + 1} of {table.getPageCount()}
+            </span>
+          )}
           <div className="flex gap-1.5">
             <button
               onClick={() => table.previousPage()}
@@ -253,7 +282,7 @@ export function Leaderboard({ players, sentenceLength, currentUserId }: Props) {
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
