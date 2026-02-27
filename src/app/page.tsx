@@ -1,5 +1,7 @@
-import { requireUser } from "../lib/auth/require-user";
+import { requireUser } from "@/lib/auth/require-user";
 import { ensureProfile } from "@/lib/profiles/ensure-profile";
+import { LogoutButton } from "./_components/logout-button";
+import { RacePage } from "./_components/race-page";
 
 export default async function HomePage() {
   const { supabase, user } = await requireUser();
@@ -8,14 +10,18 @@ export default async function HomePage() {
   return (
     <main className="min-h-screen p-6">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold">Typecomp ✍️</h1>
-        <p className="mt-2 text-white/70">
-          Logged in as <span className="text-white">{profile.username}</span>
-        </p>
+        <header className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Typecomp</h1>
+            <p className="text-sm text-white/40 mt-0.5">
+              Racing as{" "}
+              <span className="text-white/80">{profile.username}</span>
+            </p>
+          </div>
+          <LogoutButton />
+        </header>
 
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
-          Next: rounds/ensure endpoint + realtime channel.
-        </div>
+        <RacePage userId={user.id} username={profile.username} />
       </div>
     </main>
   );
