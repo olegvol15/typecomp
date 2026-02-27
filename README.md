@@ -6,6 +6,19 @@ A real-time typing competition platform. Players join a global room, type the sa
 
 ---
 
+## How to use
+
+1. **Create an account** — open the live demo, enter any email and password (no strict validation).
+2. **Pick a username** — you'll be redirected to a one-time onboarding screen where you choose your display name.
+3. **Race** — you land on the main page. A 60-second round is always running. When the timer is above 0, start typing the sentence shown — the input activates automatically.
+   - Characters turn **green** when correct and **red** when wrong.
+   - Your live WPM, accuracy, and character count are shown below the input.
+4. **Leaderboard** — the table below the input updates in real time as other players type. Your row is highlighted in blue. Click any column header to sort; use the page-size selector to show more rows.
+5. **All-time rankings** — below the per-round leaderboard you'll find an aggregated rankings table showing every player's best WPM, average WPM, average accuracy, and total race count across all finished rounds. Sortable and paginated the same way.
+6. **Next round** — when the timer hits 0 your result is saved automatically. The next round starts within a second with a new sentence.
+
+---
+
 ## Architecture
 
 ### Stack
@@ -106,7 +119,6 @@ The home page fetches all finished `round_results` rows server-side and aggregat
 - Username settings page — let users pick their own handle.
 - Round history page — per-user breakdown across all rounds (currently aggregated globally in the rankings table).
 - Round end screen — brief results overlay before the next round auto-starts.
-- Mobile layout — the typing area needs responsive work.
 
 ---
 
