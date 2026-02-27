@@ -23,16 +23,25 @@ export function RacePage({ userId, username }: Props) {
   const typedRef = useRef(typed);
   useEffect(() => { typedRef.current = typed; }, [typed]);
 
+  const secondsLeftRef = useRef(secondsLeft);
+  useEffect(() => { secondsLeftRef.current = secondsLeft; }, [secondsLeft]);
+
+  // `sentence` is kept in state and updated atomically with `typed` so they
+  // always refer to the same round. Deriving sentence directly from `round`
+  // would cause one render where old `typed` is compared against the new
+  // sentence, producing near-zero stats right as the round ends.
+  const [sentence, setSentence] = useState(round?.sentence.text ?? "");
+
   const persistedRef = useRef(false);
   const roundIdRef = useRef<string | null>(null);
 
-  const sentence = round?.sentence.text ?? "";
   const roundActive = secondsLeft > 0;
 
   useEffect(() => {
     if (!round || round.id === roundIdRef.current) return;
     roundIdRef.current = round.id;
     setTyped("");
+    setSentence(round.sentence.text);
     persistedRef.current = false;
   }, [round?.id]);
 
@@ -52,7 +61,7 @@ export function RacePage({ userId, username }: Props) {
       const capped = value.slice(0, sentence.length);
       setTyped(capped);
 
-      const elapsed = Math.max(1, 60 - secondsLeft);
+      const elapsed = Math.max(1, 60 - secondsLeftRef.current);
       const stats = computeStats(capped, sentence, elapsed);
 
       broadcastUpdate({
@@ -72,30 +81,45 @@ export function RacePage({ userId, username }: Props) {
         void persistResult(round.id, capped, stats.correctChars, stats.accuracy, stats.wpm, true);
       }
     },
-    [round, roundActive, sentence, secondsLeft, userId, username, broadcastUpdate, persistResult],
+    [round, roundActive, sentence, userId, username, broadcastUpdate, persistResult],
   );
 
   const elapsed = Math.max(1, 60 - secondsLeft);
-  const liveStats = typed.length > 0 ? computeStats(typed, sentence, elapsed) : null;
+  const liveStats = useMemo(
+    () => typed.length > 0 ? computeStats(typed, sentence, elapsed) : null,
+    [typed, sentence, elapsed],
+  );
 
   const leaderboardPlayers = useMemo<PlayerState[]>(() => {
     const all = Array.from(players.values());
-    const stats = liveStats ?? { correctChars: 0, accuracy: 0, wpm: 0 };
-    const self: PlayerState = {
-      userId,
-      username,
-      typedText: typed,
-      correctChars: stats.correctChars,
-      typedChars: typed.length,
-      wpm: stats.wpm,
-      accuracy: stats.accuracy,
-      finished: typed.length === sentence.length && stats.correctChars === sentence.length,
-      isOnline: true,
-      updatedAt: new Date().toISOString(),
-    };
     const idx = all.findIndex((p) => p.userId === userId);
-    if (idx >= 0) all[idx] = self;
-    else all.push(self);
+
+    if (typed.length > 0 && liveStats) {
+      // Actively typing — inject live stats so self-row updates in real time
+      const self: PlayerState = {
+        userId,
+        username,
+        typedText: typed,
+        correctChars: liveStats.correctChars,
+        typedChars: typed.length,
+        wpm: liveStats.wpm,
+        accuracy: liveStats.accuracy,
+        finished: typed.length === sentence.length && liveStats.correctChars === sentence.length,
+        isOnline: true,
+        updatedAt: new Date().toISOString(),
+      };
+      if (idx >= 0) all[idx] = self;
+      else all.push(self);
+    } else {
+      // Not typed yet — keep loaded stats (previous round baseline) and
+      // just mark self as online so the presence dot is correct
+      if (idx >= 0) {
+        all[idx] = { ...all[idx], isOnline: true };
+      } else {
+        all.push({ userId, username, typedText: "", correctChars: 0, typedChars: 0, wpm: 0, accuracy: 0, finished: false, isOnline: true, updatedAt: new Date().toISOString() });
+      }
+    }
+
     return all;
   }, [players, typed, liveStats, userId, username, sentence.length]);
 

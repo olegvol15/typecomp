@@ -32,6 +32,9 @@ export function useRace(
 ) {
   const [players, setPlayers] = useState<Map<string, PlayerState>>(new Map());
   const channelRef = useRef<RealtimeChannel | null>(null);
+  // Tracks the current round ID without being captured in channel closures.
+  // Used to reject stale broadcasts from the previous channel after round transition.
+  const currentRoundIdRef = useRef<string | undefined>(undefined);
 
   // Stable Supabase browser client — created once per hook instance
   const supabase = useRef(createSupabaseBrowserClient()).current;
@@ -43,37 +46,68 @@ export function useRace(
   useEffect(() => {
     if (!round) return;
 
-    // Reset player map for the new round
+    currentRoundIdRef.current = round.id;
     setPlayers(new Map());
 
-    supabase
-      .from("round_results")
-      .select(
-        "user_id, username, typed_text, correct_chars, accuracy, wpm, finished, updated_at",
-      )
-      .eq("round_id", round.id)
-      .then(({ data }) => {
-        if (!data) return;
-        setPlayers((prev) => {
-          const next = new Map(prev);
-          for (const row of data) {
-            next.set(row.user_id, {
-              userId: row.user_id,
-              username: row.username,
-              typedText: row.typed_text,
-              correctChars: row.correct_chars,
-              typedChars: row.typed_text.length,
-              wpm: Number(row.wpm),
-              accuracy: Number(row.accuracy),
-              finished: row.finished,
-              isOnline: false, // updated by presence sync below
-              updatedAt: row.updated_at,
-            });
-          }
-          return next;
-        });
+    const cols = "user_id, username, typed_text, correct_chars, accuracy, wpm, finished, updated_at";
+
+    const toPlayerState = (
+      row: { user_id: string; username: string; typed_text: string; correct_chars: number; accuracy: number; wpm: number; finished: boolean; updated_at: string },
+      fromCurrentRound: boolean,
+    ): PlayerState => ({
+      userId: row.user_id,
+      username: row.username,
+      // Don't carry over typed text from a previous round
+      typedText: fromCurrentRound ? row.typed_text : "",
+      correctChars: row.correct_chars,
+      typedChars: fromCurrentRound ? row.typed_text.length : 0,
+      wpm: Number(row.wpm),
+      accuracy: Number(row.accuracy),
+      finished: fromCurrentRound ? row.finished : false,
+      isOnline: false,
+      updatedAt: row.updated_at,
+    });
+
+    const load = async () => {
+      // Load current round results first (may be empty for a brand-new round)
+      const { data: current } = await supabase
+        .from("round_results")
+        .select(cols)
+        .eq("round_id", round.id);
+
+      // Load previous round results so returning players see their last stats
+      // instead of zeros at the start of a new round
+      let previous: typeof current = [];
+      if (round.roundNumber > 1) {
+        const { data: prevRound } = await supabase
+          .from("rounds")
+          .select("id")
+          .eq("round_number", round.roundNumber - 1)
+          .maybeSingle();
+        if (prevRound) {
+          const { data } = await supabase
+            .from("round_results")
+            .select(cols)
+            .eq("round_id", prevRound.id);
+          previous = data ?? [];
+        }
+      }
+
+      setPlayers((prev) => {
+        const next = new Map(prev);
+        // Previous round fills baseline; current round overwrites where it exists
+        for (const row of (previous ?? [])) {
+          next.set(row.user_id, toPlayerState(row, false));
+        }
+        for (const row of (current ?? [])) {
+          next.set(row.user_id, toPlayerState(row, true));
+        }
+        return next;
       });
-  }, [round?.id, supabase]);
+    };
+
+    void load();
+  }, [round?.id, round?.roundNumber, supabase]);
 
   // -------------------------------------------------------------------------
   // Supabase Realtime subscription — single channel "race:global"
@@ -148,8 +182,10 @@ export function useRace(
           if (!parsed.success) return;
           const p = parsed.data;
 
-          // Discard stale broadcasts from a previous round
-          if (p.roundId !== round.id) return;
+          // Discard stale broadcasts from a previous round.
+          // Uses a ref (not closure) so old channels after round transition
+          // are rejected even before the channel unsubscribes fully.
+          if (p.roundId !== currentRoundIdRef.current) return;
 
           const sentenceLen = round.sentence.text.length;
           const capped = p.typedText.slice(0, sentenceLen);
