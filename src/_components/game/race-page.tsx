@@ -4,9 +4,10 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useCurrentRound } from "@/hooks/use-current-round";
 import { useRace } from "@/hooks/use-race";
 import { computeStats } from "@/utils/stats";
-import { Timer } from "./timer";
-import { TypingArea } from "./typing-area";
-import { Leaderboard } from "./leaderboard";
+import { formatAccuracy, formatWpm } from "@/utils/format";
+import { RoundTimer } from "./round-timer";
+import { TypingInput } from "./typing-input";
+import { LeaderboardTable } from "./leaderboard-table";
 import type { PlayerState } from "@/types/race";
 
 type Props = {
@@ -16,19 +17,11 @@ type Props = {
 
 export function RacePage({ userId, username }: Props) {
   const { round, secondsLeft, isLoading, error } = useCurrentRound();
-  const { players, broadcastUpdate, persistResult } = useRace(
-    round,
-    userId,
-    username,
-  );
+  const { players, broadcastUpdate, persistResult } = useRace(round, userId, username);
 
   const [typed, setTyped] = useState("");
-
-  // Refs to avoid stale closures in effects
   const typedRef = useRef(typed);
-  useEffect(() => {
-    typedRef.current = typed;
-  }, [typed]);
+  useEffect(() => { typedRef.current = typed; }, [typed]);
 
   const persistedRef = useRef(false);
   const roundIdRef = useRef<string | null>(null);
@@ -36,7 +29,6 @@ export function RacePage({ userId, username }: Props) {
   const sentence = round?.sentence.text ?? "";
   const roundActive = secondsLeft > 0;
 
-  // Reset state when a new round starts
   useEffect(() => {
     if (!round || round.id === roundIdRef.current) return;
     roundIdRef.current = round.id;
@@ -44,23 +36,14 @@ export function RacePage({ userId, username }: Props) {
     persistedRef.current = false;
   }, [round?.id]);
 
-  // Persist result when the round clock hits zero
+  // Persist on round expiry (uses ref to avoid stale closure on `typed`)
   useEffect(() => {
     if (!round || roundActive || persistedRef.current) return;
-    if (typedRef.current.length === 0) return; // nothing typed, nothing to save
+    if (typedRef.current.length === 0) return;
     persistedRef.current = true;
-
     const t = typedRef.current;
-    const s = round.sentence.text;
-    const stats = computeStats(t, s, 60);
-    void persistResult(
-      round.id,
-      t.slice(0, s.length),
-      stats.correctChars,
-      stats.accuracy,
-      stats.wpm,
-      false, // finished by time, not necessarily complete
-    );
+    const stats = computeStats(t, round.sentence.text, 60);
+    void persistResult(round.id, t.slice(0, round.sentence.text.length), stats.correctChars, stats.accuracy, stats.wpm, false);
   }, [roundActive, round, persistResult]);
 
   const handleType = useCallback(
@@ -84,43 +67,17 @@ export function RacePage({ userId, username }: Props) {
         updatedAt: new Date().toISOString(),
       });
 
-      // Immediately persist when the player completes the sentence
-      if (
-        capped.length === sentence.length &&
-        stats.correctChars === sentence.length &&
-        !persistedRef.current
-      ) {
+      if (capped.length === sentence.length && stats.correctChars === sentence.length && !persistedRef.current) {
         persistedRef.current = true;
-        void persistResult(
-          round.id,
-          capped,
-          stats.correctChars,
-          stats.accuracy,
-          stats.wpm,
-          true,
-        );
+        void persistResult(round.id, capped, stats.correctChars, stats.accuracy, stats.wpm, true);
       }
     },
-    [
-      round,
-      roundActive,
-      sentence,
-      secondsLeft,
-      userId,
-      username,
-      broadcastUpdate,
-      persistResult,
-    ],
+    [round, roundActive, sentence, secondsLeft, userId, username, broadcastUpdate, persistResult],
   );
 
-  // Live stats for the current user
   const elapsed = Math.max(1, 60 - secondsLeft);
-  const liveStats =
-    typed.length > 0 ? computeStats(typed, sentence, elapsed) : null;
+  const liveStats = typed.length > 0 ? computeStats(typed, sentence, elapsed) : null;
 
-  // Merge live self-stats into the leaderboard.
-  // Because broadcast: { self: false }, the current user never receives their
-  // own updates — so we inject the entry locally from typed state.
   const leaderboardPlayers = useMemo<PlayerState[]>(() => {
     const all = Array.from(players.values());
     const stats = liveStats ?? { correctChars: 0, accuracy: 0, wpm: 0 };
@@ -132,24 +89,16 @@ export function RacePage({ userId, username }: Props) {
       typedChars: typed.length,
       wpm: stats.wpm,
       accuracy: stats.accuracy,
-      finished:
-        typed.length === sentence.length &&
-        stats.correctChars === sentence.length,
+      finished: typed.length === sentence.length && stats.correctChars === sentence.length,
       isOnline: true,
       updatedAt: new Date().toISOString(),
     };
     const idx = all.findIndex((p) => p.userId === userId);
-    if (idx >= 0) {
-      all[idx] = self;
-    } else {
-      all.push(self);
-    }
+    if (idx >= 0) all[idx] = self;
+    else all.push(self);
     return all;
   }, [players, typed, liveStats, userId, username, sentence.length]);
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   if (error) {
     return (
       <div className="rounded-2xl border border-red-900/50 bg-red-900/10 p-6 text-red-400">
@@ -168,60 +117,38 @@ export function RacePage({ userId, username }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Header row: round info + timer */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-base font-semibold text-white/60">
-            Round{" "}
-            <span className="text-white font-bold">#{round.roundNumber}</span>
+            Round <span className="text-white font-bold">#{round.roundNumber}</span>
           </h2>
           {round.sentence.source && (
-            <p className="text-xs text-white/30 mt-0.5">
-              — {round.sentence.source}
-            </p>
+            <p className="text-xs text-white/30 mt-0.5">— {round.sentence.source}</p>
           )}
         </div>
-        <Timer secondsLeft={secondsLeft} />
+        <RoundTimer secondsLeft={secondsLeft} />
       </div>
 
-      {/* Typing area */}
-      <TypingArea
-        sentence={sentence}
-        typed={typed}
-        disabled={!roundActive}
-        onType={handleType}
-      />
+      <TypingInput sentence={sentence} typed={typed} disabled={!roundActive} onType={handleType} />
 
-      {/* Live personal stats */}
       {liveStats && (
         <div className="flex gap-6 text-sm text-white/40">
           <span>
-            <span className="text-white font-mono tabular-nums">
-              {liveStats.wpm.toFixed(1)}
-            </span>{" "}
-            WPM
+            <span className="text-white font-mono tabular-nums">{formatWpm(liveStats.wpm)}</span> WPM
           </span>
           <span>
-            <span className="text-white font-mono tabular-nums">
-              {(liveStats.accuracy * 100).toFixed(1)}%
-            </span>{" "}
-            accuracy
+            <span className="text-white font-mono tabular-nums">{formatAccuracy(liveStats.accuracy)}</span> accuracy
           </span>
           <span>
-            <span className="text-white font-mono tabular-nums">
-              {liveStats.correctChars}
-            </span>
-            /{sentence.length} chars
+            <span className="text-white font-mono tabular-nums">{liveStats.correctChars}</span>/{sentence.length} chars
           </span>
         </div>
       )}
 
-      {/* Leaderboard */}
       <div>
         <h3 className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">
           Leaderboard
         </h3>
-        {/* Suspense required because Leaderboard uses useSearchParams */}
         <Suspense
           fallback={
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-white/30 text-sm">
@@ -229,7 +156,7 @@ export function RacePage({ userId, username }: Props) {
             </div>
           }
         >
-          <Leaderboard
+          <LeaderboardTable
             players={leaderboardPlayers}
             sentenceLength={sentence.length}
             currentUserId={userId}

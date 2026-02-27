@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { clsx } from "clsx";
+import { cn } from "@/utils/cn";
 
 type Props = {
   sentence: string;
@@ -10,24 +10,21 @@ type Props = {
   onType: (value: string) => void;
 };
 
-export function TypingArea({ sentence, typed, disabled, onType }: Props) {
+export function TypingInput({ sentence, typed, disabled, onType }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus when the round becomes active
   useEffect(() => {
     if (!disabled) inputRef.current?.focus();
   }, [disabled]);
 
   return (
     <div className="space-y-4">
-      {/* Sentence display with character-level feedback */}
       <div
         className="rounded-xl border border-white/10 bg-white/5 p-6 font-mono text-xl leading-loose select-none cursor-text"
         onClick={() => inputRef.current?.focus()}
       >
         {sentence.split("").map((char, i) => {
           if (i > typed.length) {
-            // Untyped, not cursor
             return (
               <span key={i} className="text-white/25">
                 {char}
@@ -35,23 +32,16 @@ export function TypingArea({ sentence, typed, disabled, onType }: Props) {
             );
           }
           if (i === typed.length) {
-            // Current cursor position
             return (
-              <span
-                key={i}
-                className="text-white/25 border-b-2 border-blue-400"
-              >
+              <span key={i} className="text-white/25 border-b-2 border-blue-400">
                 {char}
               </span>
             );
           }
-          const correct = typed[i] === char;
           return (
             <span
               key={i}
-              className={
-                correct ? "text-green-400" : "text-red-400 bg-red-900/20"
-              }
+              className={typed[i] === char ? "text-green-400" : "text-red-400 bg-red-900/20"}
             >
               {char}
             </span>
@@ -59,7 +49,6 @@ export function TypingArea({ sentence, typed, disabled, onType }: Props) {
         })}
       </div>
 
-      {/* Actual input — transparent overlay approach */}
       <input
         ref={inputRef}
         type="text"
@@ -70,7 +59,7 @@ export function TypingArea({ sentence, typed, disabled, onType }: Props) {
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        className={clsx(
+        className={cn(
           "w-full rounded-lg border px-4 py-3 font-mono text-sm outline-none transition-colors",
           "bg-white/5 text-white placeholder-white/30",
           disabled
