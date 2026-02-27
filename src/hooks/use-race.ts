@@ -95,23 +95,42 @@ export function useRace(
           userId: string;
           username: string;
         }>();
-        const onlineIds = new Set(Object.keys(state));
         setPlayers((prev) => {
           const next = new Map(prev);
+          const onlineIds = new Set(Object.keys(state));
+
+          // Add any online user not yet in the map (joined before us or never typed)
+          for (const [key, presences] of Object.entries(state)) {
+            if (!next.has(key)) {
+              const p = (presences as { userId: string; username: string }[])[0];
+              if (p) next.set(key, blankPlayer(p.userId, p.username));
+            }
+          }
+
+          // Sync online flag for everyone
           for (const [id, player] of next) {
             next.set(id, { ...player, isOnline: onlineIds.has(id) });
           }
           return next;
         });
       })
-      .on("presence", { event: "join" }, ({ key }: { key: string }) => {
-        setPlayers((prev) => {
-          const next = new Map(prev);
-          const existing = next.get(key);
-          if (existing) next.set(key, { ...existing, isOnline: true });
-          return next;
-        });
-      })
+      .on(
+        "presence",
+        { event: "join" },
+        ({ key, newPresences }: { key: string; newPresences: { userId: string; username: string }[] }) => {
+          setPlayers((prev) => {
+            const next = new Map(prev);
+            const existing = next.get(key);
+            if (existing) {
+              next.set(key, { ...existing, isOnline: true });
+            } else {
+              const p = newPresences[0];
+              if (p) next.set(key, blankPlayer(p.userId, p.username));
+            }
+            return next;
+          });
+        },
+      )
       .on("presence", { event: "leave" }, ({ key }: { key: string }) => {
         setPlayers((prev) => {
           const next = new Map(prev);
@@ -215,4 +234,22 @@ export function useRace(
   );
 
   return { players, broadcastUpdate, persistResult };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function blankPlayer(userId: string, username: string): PlayerState {
+  return {
+    userId,
+    username,
+    typedText: "",
+    correctChars: 0,
+    typedChars: 0,
+    wpm: 0,
+    accuracy: 0,
+    finished: false,
+    isOnline: true,
+    updatedAt: new Date().toISOString(),
+  };
 }
