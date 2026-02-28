@@ -2,7 +2,7 @@
 
 A real-time typing competition platform. Players join a global room, type the same sentence within a 60-second round, and race each other live.
 
-**Live demo:** https://typecomp.vercel.app/?sort=wpm&dir=desc&page=0&size=10
+**Live demo:** https://typecomp.vercel.app
 
 ---
 
